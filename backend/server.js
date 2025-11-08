@@ -5,10 +5,12 @@
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
-import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import dotenv from "dotenv";
+import checkinRoutes from "./routes/checkin.js";
+import adminRoutes from "./routes/admin.js";
 
 // Load environment variables
 dotenv.config();
@@ -16,10 +18,6 @@ dotenv.config();
 // Fix __dirname and __filename (not available in ES modules)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// Import routes (must include .js extension in ESM)
-import checkinRoutes from "./routes/checkin.js";
-import adminRoutes from "./routes/admin.js";
 
 const app = express();
 

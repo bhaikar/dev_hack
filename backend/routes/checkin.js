@@ -20,65 +20,62 @@ router.post("/", async (req, res) => {
 
     const normalizedTeamId = teamId.trim().toUpperCase();
 
-    // Check if team exists in selected teams
-    const team = await SelectedTeam.findOne({ teamId: normalizedTeamId });
+    // Find and atomically update team (prevent race condition)
+    const now = new Date();
+    const updatedTeam = await SelectedTeam.findOneAndUpdate(
+      { teamId: normalizedTeamId, isCheckedIn: false },
+      { $set: { isCheckedIn: true, checkInTime: now } },
+      { new: true }
+    );
 
-    if (!team) {
-      return res.status(404).json({
+    if (!updatedTeam) {
+      const existing = await SelectedTeam.findOne({ teamId: normalizedTeamId });
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: "Team ID not found. Please verify your Team ID.",
+        });
+      }
+      if (existing.isCheckedIn) {
+        return res.status(400).json({
+          success: false,
+          message: "This team has already checked in.",
+          team: {
+            teamId: existing.teamId,
+            teamName: existing.teamName,
+            checkInTime: existing.checkInTime,
+          },
+        });
+      }
+      return res.status(400).json({
         success: false,
-        message: "Team ID not found. Please verify your Team ID.",
+        message: "Unable to check in. Please try again.",
       });
     }
 
-    // Validate that team has required data
-    if (!team.teamName || team.teamName.trim() === "") {
-      return res.status(400).json({
-        success: false,
-        message: "Team data is incomplete. Please contact admin.",
-      });
-    }
-
-    // Check if already checked in
-    if (team.isCheckedIn) {
-      return res.status(400).json({
-        success: false,
-        message: "This team has already checked in.",
-        team: {
-          teamId: team.teamId,
-          teamName: team.teamName,
-          checkInTime: team.checkInTime,
+    // Upsert into RegistrationDone collection
+    await RegistrationDone.findOneAndUpdate(
+      { teamId: updatedTeam.teamId },
+      {
+        $set: {
+          teamName: updatedTeam.teamName,
+          checkInTime: updatedTeam.checkInTime,
+          status: "present",
         },
-      });
-    }
+      },
+      { upsert: true, new: true }
+    );
 
-    // Mark as checked in
-    team.isCheckedIn = true;
-    team.checkInTime = new Date();
-    await team.save();
-
-    // Add to registration done collection
-    try {
-      const registration = new RegistrationDone({
-        teamId: team.teamId,
-        teamName: team.teamName,
-        checkInTime: team.checkInTime,
-        status: "present",
-      });
-      await registration.save();
-    } catch (regError) {
-      console.error("Error saving to RegistrationDone:", regError);
-      // Continue even if this fails - main check-in is done
-    }
-
+    // Success response
     res.status(200).json({
       success: true,
       message: "Team checked in successfully!",
       team: {
-        teamId: team.teamId,
-        teamName: team.teamName,
-        college: team.college,
-        members: team.members || [],
-        checkInTime: team.checkInTime,
+        teamId: updatedTeam.teamId,
+        teamName: updatedTeam.teamName,
+        college: updatedTeam.college,
+        members: updatedTeam.members || [],
+        checkInTime: updatedTeam.checkInTime,
       },
     });
   } catch (error) {
@@ -128,3 +125,5 @@ router.get("/status/:teamId", async (req, res) => {
 // ✅ Export router (ESM syntax)
 // ------------------------------
 export default router;
+
+
