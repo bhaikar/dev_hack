@@ -1,61 +1,82 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const path = require('path');
-require('dotenv').config(); // Load environment variables
+// ------------------------------
+// ✅ HACK.MCE 5.0 Backend (ESM)
+// ------------------------------
 
-// Import routes
-const checkinRoutes = require('./routes/checkin');
-const adminRoutes = require('./routes/admin');
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+// Load environment variables
+dotenv.config();
+
+// Fix __dirname and __filename (not available in ES modules)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Import routes (must include .js extension in ESM)
+import checkinRoutes from "./routes/checkin.js";
+import adminRoutes from "./routes/admin.js";
 
 const app = express();
 
+// ------------------------------
 // Middleware
+// ------------------------------
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB Connection - Use Atlas or local
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/hackmce5';
+// ------------------------------
+// MongoDB Connection
+// ------------------------------
+const MONGODB_URI =
+  process.env.MONGODB_URI || "mongodb://localhost:27017/hackmce5";
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => {
-  console.log('✅ Connected to MongoDB');
-  console.log('📊 Database: hackmce5');
-})
-.catch((err) => {
-  console.error('❌ MongoDB connection error:', err);
-  process.exit(1);
-});
+mongoose
+  .connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("✅ Connected to MongoDB");
+    console.log("📊 Database: hackmce5");
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err);
+    process.exit(1);
+  });
 
-// Routes - API routes must come before static file serving
-app.use('/api/checkin', checkinRoutes);
-app.use('/api/admin', adminRoutes);
+// ------------------------------
+// Routes
+// ------------------------------
+app.use("/api/checkin", checkinRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    message: 'HACK.MCE 5.0 Backend is running',
-    timestamp: new Date().toISOString()
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "HACK.MCE 5.0 Backend is running",
+    timestamp: new Date().toISOString(),
   });
 });
 
-// Serve static files from the parent directory (root of the project)
-// This serves HTML, CSS, JS files from the root directory
-// express.static automatically serves index.html for the root route (/)
-app.use(express.static(path.join(__dirname, '..')));
+// Serve static files from the parent directory
+app.use(express.static(path.join(__dirname, "..")));
 
-// Error handling middleware
+// ------------------------------
+// Error Handling
+// ------------------------------
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error("Error:", err);
   res.status(500).json({
     success: false,
-    message: 'Internal server error',
-    error: err.message
+    message: "Internal server error",
+    error: err.message,
   });
 });
 
@@ -63,14 +84,17 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Endpoint not found'
+    message: "Endpoint not found",
   });
 });
 
-// Start server
+// ------------------------------
+// Server Start
+// ------------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📡 API available at http://localhost:${PORT}/api`);
   console.log(`🔥 HACK.MCE 5.0 - Registration System`);
 });
+
