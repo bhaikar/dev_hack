@@ -1,5 +1,10 @@
   // API Base URL - Update this with your backend URL
-        const API_BASE_URL = 'http://localhost:3000/api';
+        // Automatically detect environment (local or deployed)
+const API_BASE_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:3000/api"
+    : "https://dev-hack-tan.vercel.app/api";
+
 
         // DOM Elements
         const checkInForm = document.getElementById('checkInForm');
