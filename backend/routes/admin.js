@@ -1,253 +1,133 @@
-import express from "express";
-import { SelectedTeam, RegistrationDone } from "../models/Team.js";
-import XLSX from "xlsx";
+// ========================================
+// ✅ Admin Dashboard Script (Final Version)
+// ========================================
 
-const router = express.Router();
+// Auto-detect backend URL (works locally + on Vercel)
+const API_BASE_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:3000/api"
+    : "https://dev-hack-tan.vercel.app/api";
 
-// ------------------------------
-// GET /api/admin/stats - Get statistics
-// ------------------------------
-router.get("/stats", async (req, res) => {
-  try {
-    const totalTeams = await SelectedTeam.countDocuments();
-    const checkedInTeams = await SelectedTeam.countDocuments({ isCheckedIn: true });
-    const pendingTeams = totalTeams - checkedInTeams;
+// DOM Elements
+const totalTeamsEl = document.getElementById("totalTeams");
+const checkedInCountEl = document.getElementById("checkedInCount");
+const pendingCountEl = document.getElementById("pendingCount");
+const teamTableBody = document.querySelector("#teamTable tbody");
+const messageBox = document.getElementById("message");
 
-    res.status(200).json({
-      success: true,
-      stats: {
-        total: totalTeams,
-        checkedIn: checkedInTeams,
-        pending: pendingTeams,
-      },
-    });
-  } catch (error) {
-    console.error("Stats error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error fetching statistics",
-      error: error.message,
-    });
-  }
-});
+// ===============================
+// Utility: Show message on screen
+// ===============================
+function showMessage(text, type = "info") {
+  messageBox.textContent = text;
+  messageBox.className = `message ${type}`;
+  messageBox.style.display = "block";
+  setTimeout(() => (messageBox.style.display = "none"), 5000);
+}
 
-// ------------------------------
-// GET /api/admin/all-teams - Get all teams with status
-// ------------------------------
-router.get("/all-teams", async (req, res) => {
-  try {
-    const teams = await SelectedTeam.find()
-      .sort({ isCheckedIn: -1, checkInTime: -1, teamId: 1 })
-      .select("teamId teamName college members contactNumber email isCheckedIn checkInTime")
-      .lean();
-
-    const formattedTeams = teams.map((team) => ({
-      teamId: team.teamId,
-      teamName: team.teamName,
-      college: team.college,
-      members: team.members || [],
-      contactNumber: team.contactNumber || "",
-      email: team.email || "",
-      isCheckedIn: team.isCheckedIn || false,
-      checkInTime: team.checkInTime || null,
-    }));
-
-    res.status(200).json({
-      success: true,
-      count: formattedTeams.length,
-      teams: formattedTeams,
-    });
-  } catch (error) {
-    console.error("Get teams error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error fetching teams",
-      error: error.message,
-    });
-  }
-});
-
-// ------------------------------
-// GET /api/admin/checked-in-teams - Get only checked-in teams
-// ------------------------------
-router.get("/checked-in-teams", async (req, res) => {
-  try {
-    const teams = await RegistrationDone.find().sort({ checkInTime: -1 });
-    res.status(200).json({
-      success: true,
-      count: teams.length,
-      teams: teams,
-    });
-  } catch (error) {
-    console.error("Get checked-in teams error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error fetching checked-in teams",
-      error: error.message,
-    });
-  }
-});
-
-// ------------------------------
-// POST /api/admin/manual-checkin - Manually check-in a team
-// ------------------------------
-router.post("/manual-checkin", async (req, res) => {
-  try {
-    const { teamId } = req.body;
-    if (!teamId) {
-      return res.status(400).json({
-        success: false,
-        message: "Team ID is required",
-      });
+// ========================================
+// Utility: Retry fetch to handle cold starts
+// ========================================
+async function fetchWithRetry(url, options = {}, retries = 1) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res;
+    } catch (err) {
+      if (i === retries) throw err;
+      console.warn("Retrying fetch...", i + 1);
+      await new Promise((r) => setTimeout(r, 1000));
     }
-
-    const normalizedTeamId = teamId.trim().toUpperCase();
-    const team = await SelectedTeam.findOne({ teamId: normalizedTeamId });
-
-    if (!team) {
-      return res.status(404).json({
-        success: false,
-        message: "Team not found",
-      });
-    }
-
-    if (team.isCheckedIn) {
-      return res.status(400).json({
-        success: false,
-        message: "Team already checked in",
-      });
-    }
-
-    team.isCheckedIn = true;
-    team.checkInTime = new Date();
-    await team.save();
-
-    const registration = new RegistrationDone({
-      teamId: team.teamId,
-      teamName: team.teamName,
-      checkInTime: team.checkInTime,
-      status: "present",
-    });
-    await registration.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Team checked in successfully",
-      team: {
-        teamId: team.teamId,
-        teamName: team.teamName,
-        checkInTime: team.checkInTime,
-      },
-    });
-  } catch (error) {
-    console.error("Manual check-in error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error during manual check-in",
-      error: error.message,
-    });
   }
-});
+}
 
-// ------------------------------
-// DELETE /api/admin/undo-checkin/:teamId - Undo check-in
-// ------------------------------
-router.delete("/undo-checkin/:teamId", async (req, res) => {
+// ============================
+// Load all data on page startup
+// ============================
+async function loadAllData() {
+  await Promise.all([loadStats(), loadTeams()]);
+}
+
+// =========================================
+// Fetch and render overall event statistics
+// =========================================
+async function loadStats() {
   try {
-    const { teamId } = req.params;
-    const normalizedTeamId = teamId.trim().toUpperCase();
+    const response = await fetchWithRetry(`${API_BASE_URL}/admin/stats`);
+    const data = await response.json();
 
-    const team = await SelectedTeam.findOne({ teamId: normalizedTeamId });
-    if (!team) {
-      return res.status(404).json({
-        success: false,
-        message: "Team not found",
-      });
+    if (data.success) {
+      totalTeamsEl.textContent = data.stats.total;
+      checkedInCountEl.textContent = data.stats.checkedIn;
+      pendingCountEl.textContent = data.stats.pending;
+      console.log("✅ Stats loaded:", data.stats);
+    } else {
+      console.warn("⚠️ Unexpected stats response:", data);
+      showMessage("Error loading stats.", "error");
     }
-
-    if (!team.isCheckedIn) {
-      return res.status(400).json({
-        success: false,
-        message: "Team is not checked in",
-      });
-    }
-
-    team.isCheckedIn = false;
-    team.checkInTime = null;
-    await team.save();
-    await RegistrationDone.deleteOne({ teamId: normalizedTeamId });
-
-    res.status(200).json({
-      success: true,
-      message: "Check-in undone successfully",
-    });
   } catch (error) {
-    console.error("Undo check-in error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error undoing check-in",
-      error: error.message,
-    });
+    console.error("❌ Error loading stats:", error);
+    showMessage("Error loading stats. Please refresh.", "error");
   }
-});
+}
 
-// ------------------------------
-// GET /api/admin/export - Export checked-in teams to Excel
-// ------------------------------
-router.get("/export", async (req, res) => {
+// ======================================
+// Fetch and render all team information
+// ======================================
+async function loadTeams() {
   try {
-    const checkedInTeams = await RegistrationDone.find().sort({ checkInTime: 1 });
+    const response = await fetchWithRetry(`${API_BASE_URL}/admin/all-teams`);
+    const data = await response.json();
 
-    if (checkedInTeams.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No teams checked in yet",
-      });
+    if (data.success && Array.isArray(data.teams)) {
+      console.log(`✅ Loaded ${data.teams.length} teams`);
+      renderTeams(data.teams);
+    } else {
+      console.warn("⚠️ Unexpected API data:", data);
+      throw new Error("Invalid API data structure");
     }
-
-    const excelData = checkedInTeams.map((team, index) => ({
-      "S.No": index + 1,
-      "Team ID": team.teamId,
-      "Team Name": team.teamName,
-      "Check-in Time": new Date(team.checkInTime).toLocaleString("en-IN", {
-        dateStyle: "medium",
-        timeStyle: "medium",
-      }),
-      Status: team.status.toUpperCase(),
-    }));
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    ws["!cols"] = [
-      { wch: 8 },
-      { wch: 15 },
-      { wch: 30 },
-      { wch: 25 },
-      { wch: 12 },
-    ];
-    XLSX.utils.book_append_sheet(wb, ws, "Checked-In Teams");
-
-    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    const filename = `HACK_MCE_5.0_CheckedIn_${new Date().toISOString().split("T")[0]}.xlsx`;
-
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-
-    res.send(buffer);
   } catch (error) {
-    console.error("Export error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error exporting data",
-      error: error.message,
-    });
+    console.error("❌ Error loading teams:", error);
+    showMessage("Error loading teams. Please refresh.", "error");
   }
-});
+}
 
-// ------------------------------
-// ✅ Export router (ESM)
-// ------------------------------
-export default router;
+// =========================================
+// Render teams inside the table dynamically
+// =========================================
+function renderTeams(teams) {
+  teamTableBody.innerHTML = "";
+
+  teams.forEach((team, index) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${team.teamId}</td>
+      <td>${team.teamName}</td>
+      <td>${team.college}</td>
+      <td>${team.email}</td>
+      <td>${team.isCheckedIn ? "✅" : "❌"}</td>
+      <td>${
+        team.checkInTime
+          ? new Date(team.checkInTime).toLocaleString("en-IN", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })
+          : "-"
+      }</td>
+    `;
+    teamTableBody.appendChild(row);
+  });
+}
+
+// ==========================================
+// Auto refresh data every 15 seconds (live)
+// ==========================================
+setInterval(loadAllData, 15000);
+
+// Initial page load
+window.addEventListener("load", () => {
+  console.log("🌐 Admin dashboard loaded");
+  loadAllData();
+});
