@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HACK.MCE 5.0 - Team Check-in</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg-animation"></div>
+
+    <header>
+        <div>
+            <h1 class="logo">HACK.MCE 5.0</h1>
+            <p class="subtitle">Team Check-in System</p>
+        </div>
+        <div class="header-right">
+            <a href="admin.html"><button class="nav-btn">ADMIN</button></a>
+        </div>
+        
+    </header>
+
+    <div class="container">
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-value" id="checkedInCount">0</div>
+                <div class="stat-label">Checked In</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalTeams">50</div>
+                <div class="stat-label">Total Teams</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="pendingCount">50</div>
+                <div class="stat-label">Pending</div>
+            </div>
+        </div>
+
+        <div class="registration-card">
+            <h2 class="card-title">Team Registration</h2>
+            <form id="checkInForm">
+                <div class="form-group">
+                    <label for="teamId">Enter Team ID</label>
+                    <input 
+                        type="text" 
+                        id="teamId" 
+                        name="teamId" 
+                        placeholder="e.g., HACK001" 
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                <button type="submit" class="btn" id="checkInBtn">
+                    <span class="btn-text">Check In</span>
+                    <div class="spinner"></div>
+                </button>
+            </form>
+
+            <div id="message" class="message"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 HACK.MCE 5.0 | Malnad College of Engineering</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
