@@ -43,20 +43,29 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ------------------------------
-// MongoDB Connection
+// MongoDB Connection (MongoDB Atlas Only)
 // ------------------------------
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/hackmce5";
+// Require MONGODB_URI to be set - no localhost fallback
+const MONGODB_URI = process.env.MONGODB_URI;
 
-// Log MongoDB URI (hide password for security)
-if (process.env.MONGODB_URI) {
-  const uriDisplay = process.env.MONGODB_URI.replace(
-    /:([^:@]+)@/,
-    ":****@"
-  );
-  console.log("📊 MongoDB URI configured:", uriDisplay);
+if (!MONGODB_URI) {
+  console.error("❌ MONGODB_URI environment variable is required!");
+  console.error("⚠️ Please set MONGODB_URI in your .env file or Vercel environment variables");
+  // Don't exit in serverless (Vercel) - let it fail gracefully on first request
+  if (!process.env.VERCEL) {
+    process.exit(1);
+  }
 } else {
-  console.warn("⚠️ MONGODB_URI not set, using default localhost");
+  // Log MongoDB URI (hide password for security)
+  const uriDisplay = MONGODB_URI.replace(/:([^:@]+)@/, ":****@");
+  console.log("📊 MongoDB Atlas URI configured:", uriDisplay);
+  
+  // Check if it's an Atlas connection string
+  if (MONGODB_URI.includes("mongodb+srv://")) {
+    console.log("✅ Using MongoDB Atlas (cloud)");
+  } else if (MONGODB_URI.includes("mongodb://")) {
+    console.log("⚠️ Using standard MongoDB connection (not Atlas)");
+  }
 }
 
 // Connect to MongoDB (async, non-blocking for serverless)
@@ -81,11 +90,23 @@ const connectDB = async () => {
         return;
       }
 
-      await mongoose.connect(MONGODB_URI, {
+      // MongoDB Atlas optimized connection settings
+      const connectionOptions = {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      });
+        serverSelectionTimeoutMS: 10000, // 10 seconds for Atlas
+        socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+        maxPoolSize: 10, // Maintain up to 10 socket connections
+        minPoolSize: 2, // Maintain at least 2 socket connections
+        retryWrites: true, // Retry writes if they fail due to transient errors
+      };
+
+      // If no MONGODB_URI, throw error
+      if (!MONGODB_URI) {
+        throw new Error("MONGODB_URI environment variable is not set");
+      }
+
+      await mongoose.connect(MONGODB_URI, connectionOptions);
       isConnected = true;
       console.log("✅ Connected to MongoDB");
       console.log("📊 Database: hackmce5");
@@ -103,12 +124,33 @@ const connectDB = async () => {
 // Connect on first request (serverless-friendly)
 app.use(async (req, res, next) => {
   try {
+    // Skip MongoDB connection for health check endpoint
+    if (req.path === "/api/health") {
+      return next();
+    }
+
+    // Check if MONGODB_URI is set
+    if (!MONGODB_URI) {
+      console.error("❌ MONGODB_URI not configured");
+      return res.status(500).json({
+        success: false,
+        message: "Database connection not configured",
+        error: "MONGODB_URI environment variable is required",
+      });
+    }
+
+    // Connect if not already connected
     if (!isConnected && mongoose.connection.readyState !== 1) {
       await connectDB();
     }
   } catch (err) {
-    // Log error but continue (for serverless cold starts)
-    console.error("⚠️ MongoDB connection failed, request may fail:", err.message);
+    // Log error and return proper error response
+    console.error("❌ MongoDB connection failed:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Database connection failed",
+      error: err.message,
+    });
   }
   next();
 });
@@ -119,12 +161,22 @@ app.use(async (req, res, next) => {
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/admin", adminRoutes);
 
-// Health check endpoint
+// Health check endpoint (works without MongoDB connection)
 app.get("/api/health", (req, res) => {
+  const dbStatus = MONGODB_URI 
+    ? (mongoose.connection.readyState === 1 ? "connected" : "disconnected")
+    : "not configured";
+  
   res.json({
     status: "ok",
     message: "HACK.MCE 5.0 Backend is running",
     timestamp: new Date().toISOString(),
+    database: {
+      status: dbStatus,
+      configured: !!MONGODB_URI,
+      connectionState: mongoose.connection.readyState, // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+      isAtlas: MONGODB_URI ? MONGODB_URI.includes("mongodb+srv://") : false,
+    },
   });
 });
 
@@ -166,14 +218,32 @@ app.use((req, res) => {
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 3000;
   
-  // Connect to MongoDB for local development
-  connectDB().then(() => {
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-      console.log(`📡 API available at http://localhost:${PORT}/api`);
-      console.log(`🔥 HACK.MCE 5.0 - Registration System`);
-    });
-  });
+  // Connect to MongoDB Atlas for local development
+  if (MONGODB_URI) {
+    connectDB()
+      .then(() => {
+        app.listen(PORT, () => {
+          console.log(`🚀 Server running on http://localhost:${PORT}`);
+          console.log(`📡 API available at http://localhost:${PORT}/api`);
+          console.log(`🔥 HACK.MCE 5.0 - Registration System`);
+          console.log(`💾 Using MongoDB Atlas (cloud database)`);
+        });
+      })
+      .catch((err) => {
+        console.error("❌ Failed to connect to MongoDB Atlas:", err.message);
+        console.error("⚠️ Server will start but database operations will fail");
+        console.error("💡 Make sure MONGODB_URI is set correctly in backend/.env");
+        // Start server anyway - connection will be attempted on first request
+        app.listen(PORT, () => {
+          console.log(`🚀 Server running on http://localhost:${PORT} (without DB connection)`);
+          console.log(`📡 API available at http://localhost:${PORT}/api`);
+        });
+      });
+  } else {
+    console.error("❌ MONGODB_URI not set in .env file");
+    console.error("⚠️ Please set MONGODB_URI in backend/.env");
+    process.exit(1);
+  }
 }
 
 // ------------------------------
