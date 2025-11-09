@@ -1,5 +1,7 @@
- // API Base URL
-        const API_BASE_URL = 'http://localhost:3000/api';
+ // API Base URL - Automatically detect environment (local or deployed)
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000/api' 
+            : '/api';
         let allTeams = [];
 
         // Load all data on page load

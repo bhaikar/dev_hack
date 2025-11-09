@@ -24,7 +24,14 @@ const app = express();
 // ------------------------------
 // Middleware
 // ------------------------------
-app.use(cors());
+// CORS configuration - allow all origins for Vercel deployment
+app.use(
+  cors({
+    origin: "*", // Allow all origins
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -34,19 +41,59 @@ app.use(express.urlencoded({ extended: true }));
 const MONGODB_URI =
   process.env.MONGODB_URI || "mongodb://localhost:27017/hackmce5";
 
-mongoose
-  .connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log("✅ Connected to MongoDB");
-    console.log("📊 Database: hackmce5");
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err);
-    process.exit(1);
-  });
+// Connect to MongoDB (async, non-blocking for serverless)
+let isConnected = false;
+let connectionPromise = null;
+
+const connectDB = async () => {
+  if (isConnected) {
+    return;
+  }
+
+  // If connection is in progress, wait for it
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
+  connectionPromise = (async () => {
+    try {
+      // Check if already connected
+      if (mongoose.connection.readyState === 1) {
+        isConnected = true;
+        return;
+      }
+
+      await mongoose.connect(MONGODB_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      });
+      isConnected = true;
+      console.log("✅ Connected to MongoDB");
+      console.log("📊 Database: hackmce5");
+    } catch (err) {
+      console.error("❌ MongoDB connection error:", err);
+      isConnected = false;
+      connectionPromise = null; // Reset to allow retry
+      throw err;
+    }
+  })();
+
+  return connectionPromise;
+};
+
+// Connect on first request (serverless-friendly)
+app.use(async (req, res, next) => {
+  try {
+    if (!isConnected && mongoose.connection.readyState !== 1) {
+      await connectDB();
+    }
+  } catch (err) {
+    // Log error but continue (for serverless cold starts)
+    console.error("⚠️ MongoDB connection failed, request may fail:", err.message);
+  }
+  next();
+});
 
 // ------------------------------
 // Routes
@@ -63,9 +110,6 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Serve static files from the parent directory
-app.use(express.static(path.join(__dirname, "..")));
-
 // ------------------------------
 // Error Handling
 // ------------------------------
@@ -78,8 +122,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
-app.use((req, res) => {
+// 404 handler (only for API routes)
+app.use("/api/*", (req, res) => {
   res.status(404).json({
     success: false,
     message: "Endpoint not found",
@@ -87,12 +131,25 @@ app.use((req, res) => {
 });
 
 // ------------------------------
-// Server Start
+// Server Start (Local Development Only)
 // ------------------------------
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📡 API available at http://localhost:${PORT}/api`);
-  console.log(`🔥 HACK.MCE 5.0 - Registration System`);
-});
+// For Vercel, we export the app as a serverless function
+// For local development, we start a server
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  
+  // Connect to MongoDB for local development
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`📡 API available at http://localhost:${PORT}/api`);
+      console.log(`🔥 HACK.MCE 5.0 - Registration System`);
+    });
+  });
+}
+
+// ------------------------------
+// Export for Vercel Serverless Functions
+// ------------------------------
+export default app;
 

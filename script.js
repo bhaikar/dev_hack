@@ -1,9 +1,8 @@
-  // API Base URL - Update this with your backend URL
-        // Automatically detect environment (local or deployed)
+  // API Base URL - Automatically detect environment (local or deployed)
 const API_BASE_URL =
   window.location.hostname === "localhost"
     ? "http://localhost:3000/api"
-    : "https://dev-hack-tan.vercel.app/api";
+    : "/api";
 
 
 
