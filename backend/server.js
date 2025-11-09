@@ -12,12 +12,19 @@ import dotenv from "dotenv";
 import checkinRoutes from "./routes/checkin.js";
 import adminRoutes from "./routes/admin.js";
 
-// Load environment variables
-dotenv.config();
-
 // Fix __dirname and __filename (not available in ES modules)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load environment variables from .env file (only if not on Vercel)
+// On Vercel, environment variables are set directly, no .env file needed
+if (!process.env.VERCEL) {
+  // Explicitly specify the path to .env file in the backend directory
+  dotenv.config({ path: path.join(__dirname, ".env") });
+  console.log("✅ Loaded environment variables from .env file");
+} else {
+  console.log("✅ Using environment variables from Vercel");
+}
 
 const app = express();
 
@@ -40,6 +47,17 @@ app.use(express.urlencoded({ extended: true }));
 // ------------------------------
 const MONGODB_URI =
   process.env.MONGODB_URI || "mongodb://localhost:27017/hackmce5";
+
+// Log MongoDB URI (hide password for security)
+if (process.env.MONGODB_URI) {
+  const uriDisplay = process.env.MONGODB_URI.replace(
+    /:([^:@]+)@/,
+    ":****@"
+  );
+  console.log("📊 MongoDB URI configured:", uriDisplay);
+} else {
+  console.warn("⚠️ MONGODB_URI not set, using default localhost");
+}
 
 // Connect to MongoDB (async, non-blocking for serverless)
 let isConnected = false;
