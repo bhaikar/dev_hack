@@ -140,12 +140,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler (only for API routes)
-app.use("/api/*", (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Endpoint not found",
-  });
+// 404 handler - must be last, after all routes
+// This catches any unmatched routes
+app.use((req, res) => {
+  // Only return JSON for API routes
+  if (req.path.startsWith("/api")) {
+    res.status(404).json({
+      success: false,
+      message: "Endpoint not found",
+      path: req.path,
+    });
+  } else {
+    res.status(404).json({
+      success: false,
+      message: "Not found",
+    });
+  }
 });
 
 // ------------------------------

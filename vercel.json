@@ -1,7 +1,9 @@
 {
-  "functions": {
-    "api/[...slug].js": {
-      "maxDuration": 30
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
     }
-  }
+  ]
 }
+
