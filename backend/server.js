@@ -3,6 +3,7 @@
 // ------------------------------
 
 import express from "express";
+// import path from "path"; // removed duplicate
 import mongoose from "mongoose";
 import cors from "cors";
 import path from "path";
@@ -27,6 +28,13 @@ if (!process.env.VERCEL) {
 }
 
 const app = express();
+// Serve static frontend files from project root
+app.use(express.static(path.join(__dirname, "../")));
+
+// Default route to index.html
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "../index.html"));
+});
 
 // ------------------------------
 // Middleware
@@ -50,21 +58,21 @@ const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
   console.error("❌ MONGODB_URI environment variable is required!");
-  console.error("⚠️ Please set MONGODB_URI in your .env file or Vercel environment variables");
+  console.error("⚠ Please set MONGODB_URI in your .env file or Vercel environment variables");
   // Don't exit in serverless (Vercel) - let it fail gracefully on first request
   if (!process.env.VERCEL) {
     process.exit(1);
   }
 } else {
   // Log MongoDB URI (hide password for security)
-  const uriDisplay = MONGODB_URI.replace(/:([^:@]+)@/, ":****@");
+  const uriDisplay = MONGODB_URI.replace(/:([^:@]+)@/, ":@");
   console.log("📊 MongoDB Atlas URI configured:", uriDisplay);
   
   // Check if it's an Atlas connection string
   if (MONGODB_URI.includes("mongodb+srv://")) {
     console.log("✅ Using MongoDB Atlas (cloud)");
   } else if (MONGODB_URI.includes("mongodb://")) {
-    console.log("⚠️ Using standard MongoDB connection (not Atlas)");
+    console.log("⚠ Using standard MongoDB connection (not Atlas)");
   }
 }
 
@@ -158,6 +166,20 @@ app.use(async (req, res, next) => {
 // ------------------------------
 // Routes
 // ------------------------------
+
+// Default /api route
+app.get("/api", (req, res) => {
+  res.json({
+    success: true,
+    message: "Welcome to the HACK.MCE 5.0 API",
+    availableEndpoints: [
+      "/api/checkin",
+      "/api/admin",
+      "/api/health"
+    ]
+  });
+});
+
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/admin", adminRoutes);
 
@@ -223,7 +245,7 @@ if (!process.env.VERCEL) {
     connectDB()
       .then(() => {
         app.listen(PORT, () => {
-          console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
           console.log(`📡 API available at http://localhost:${PORT}/api`);
           console.log(`🔥 HACK.MCE 5.0 - Registration System`);
           console.log(`💾 Using MongoDB Atlas (cloud database)`);
@@ -250,4 +272,3 @@ if (!process.env.VERCEL) {
 // Export for Vercel Serverless Functions
 // ------------------------------
 export default app;
-

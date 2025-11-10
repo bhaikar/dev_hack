@@ -46,7 +46,7 @@ router.get("/all-teams", async (req, res) => {
         college: team.college,
         email: team.email,
         members: team.members || [],
-        isCheckedIn: team.isCheckedIn || false,
+        isCheckedIn: team.isCheckedIn,
         checkInTime: team.checkInTime || null,
       })),
     });
