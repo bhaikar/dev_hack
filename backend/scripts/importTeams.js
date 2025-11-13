@@ -1,8 +1,18 @@
-const mongoose = require('mongoose');
-const XLSX = require('xlsx');
-const path = require('path');
-const { SelectedTeam } = require('../models/Team');
-require('dotenv').config(); // Load environment variables
+// to import data from excel file into MongoDB use this command:
+// npm run import --prefix backend
+
+import mongoose from 'mongoose';
+import XLSX from 'xlsx';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import { SelectedTeam } from '../models/Team.js';
+
+dotenv.config(); // Load environment variables
+
+// Fix __dirname for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // MongoDB Connection - Use Atlas or local
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/hackmce5';
@@ -53,57 +63,46 @@ async function importTeamsFromExcel() {
       const row = data[i];
       
       try {
-        // Flexible column mapping - handles different column name variations
+        // Normalize keys to handle case/space/underscore differences
+        const normalizeKey = k => k.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normRow = {};
+        Object.keys(row).forEach(k => {
+          const nk = normalizeKey(k);
+          normRow[nk] = row[k];
+        });
+
+        const get = (...variants) => {
+          for (const v of variants) {
+            const key = normalizeKey(v);
+            if (Object.prototype.hasOwnProperty.call(normRow, key) && normRow[key] !== undefined && normRow[key] !== null) {
+              return normRow[key];
+            }
+          }
+          return undefined;
+        };
+
         const teamData = {
-          teamId: (
-            row['Team ID'] || 
-            row['TeamID'] || 
-            row['team_id'] || 
-            row['id'] ||
-            row['ID'] ||
-            `HACK${String(i + 1).padStart(3, '0')}`  // Auto-generate if missing
-          ).toString().trim().toUpperCase(),
-          
-          teamName: (
-            row['Team Name'] || 
-            row['TeamName'] || 
-            row['team_name'] || 
-            row['name'] ||
-            row['Name'] ||
-            ''
-          ).toString().trim(),
-          
-          college: (
-            row['College'] || 
-            row['college'] || 
-            row['Institution'] ||
-            'Malnad College of Engineering'
-          ).toString().trim(),
-          
+          teamId: (get('Team ID', 'TeamID', 'team_id', 'id', 'ID', 'Team No', 'TEAM NO') || `HACK${String(i + 1).padStart(3, '0')}`)
+            .toString().trim().toUpperCase(),
+
+          teamName: (get('Team Name', 'TeamName', 'team_name', 'name', 'Name', 'TEAM NAME') || '')
+            .toString().trim(),
+
+          college: (get('College', 'college', 'Institution', 'College Name', 'CollegeName', 'COLLEGE NAME') || 'Malnad College of Engineering')
+            .toString().trim(),
+
           members: [
-            row['Member 1'] || row['member_1'] || row['Member1'],
-            row['Member 2'] || row['member_2'] || row['Member2'],
-            row['Member 3'] || row['member_3'] || row['Member3'],
-            row['Member 4'] || row['member_4'] || row['Member4']
+            get('member1 name', 'Member 1', 'member_1', 'Member1', 'member1'),
+            get('member2 name', 'Member 2', 'member_2', 'Member2', 'member2'),
+            get('member3 name', 'Member 3', 'member_3', 'Member3', 'member3'),
+            get('member4 name', 'Member 4', 'member_4', 'Member4', 'member4')
           ].filter(member => member && member.toString().trim() !== '')
            .map(member => member.toString().trim()),
-          
-          contactNumber: (
-            row['Contact'] || 
-            row['contact'] || 
-            row['Phone'] || 
-            row['Mobile'] ||
-            row['Contact Number'] ||
-            ''
-          ).toString().trim(),
-          
-          email: (
-            row['Email'] || 
-            row['email'] || 
-            row['E-mail'] ||
-            ''
-          ).toString().trim(),
-          
+
+          contactNumber: (get('Contact', 'contact', 'Phone', 'Mobile', 'Contact Number', 'contactnumber') || '').toString().trim(),
+
+          email: (get('Email', 'email', 'E-mail') || '').toString().trim(),
+
           isCheckedIn: false,
           checkInTime: null
         };

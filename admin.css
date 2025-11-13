@@ -273,7 +273,26 @@ th {
     letter-spacing: 1px;
 }
 
+/* Members Cell Styling */
+.members-cell {
+    font-size: 0.8rem;
+    font-style: bold;
+    color: #aaa;
+    line-height: 1.6;
+    min-width: 150px;
+    max-width: 200px;
+}
+
+.member-item {
+    padding: 0.2rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Make table cells align properly */
 td {
+    vertical-align: top;
     padding: 1rem;
     border-bottom: 1px solid rgba(220, 38, 38, 0.2);
     color: #ccc;

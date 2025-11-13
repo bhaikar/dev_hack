@@ -1,7 +1,6 @@
-// API Base URL - Automatically detect environment (local or deployed)
-const API_BASE_URL = window.location.hostname === 'localhost'
-    ? 'http://localhost:3000/api'
-    : '/api';
+// API Base URL - Update this with your backend URL
+const API_BASE_URL = 'https://dev-hack.onrender.com/api';
+
 let allTeams = [];
 
 // Load all data on page load
@@ -25,8 +24,8 @@ async function loadStats() {
             document.getElementById('totalTeams').textContent = data.stats.total;
             document.getElementById('checkedInCount').textContent = data.stats.checkedIn;
             document.getElementById('pendingCount').textContent = data.stats.pending;
-
-            const rate = data.stats.total > 0
+            
+            const rate = data.stats.total > 0 
                 ? Math.round((data.stats.checkedIn / data.stats.total) * 100)
                 : 0;
             document.getElementById('attendanceRate').textContent = rate + '%';
@@ -49,55 +48,64 @@ async function loadTeams() {
     } catch (error) {
         console.error('Error loading teams:', error);
         document.getElementById('teamsTableBody').innerHTML = `
-                    <tr><td colspan="6" style="text-align: center; color: #dc2626;">
-                        Error loading teams. Please refresh.
-                    </td></tr>
-                `;
+            <tr><td colspan="7" style="text-align: center; color: #dc2626;">
+                Error loading teams. Please refresh.
+            </td></tr>
+        `;
     }
 }
 
 // Render teams table
 function renderTeams(teams) {
     const tbody = document.getElementById('teamsTableBody');
-
+    
     if (teams.length === 0) {
         tbody.innerHTML = `
-                    <tr><td colspan="6" style="text-align: center; color: #888;">
-                        No teams found
-                    </td></tr>
-                `;
+            <tr><td colspan="7" style="text-align: center; color: #888;">
+                No teams found
+            </td></tr>
+        `;
         return;
     }
 
     tbody.innerHTML = teams.map((team, index) => {
         // Ensure isCheckedIn is a boolean
         const checkedIn = team.isCheckedIn === true || team.isCheckedIn === 'true';
-
+        
+        // Format members list (vertical)
+        let membersList = '-';
+        if (team.members && team.members.length > 0) {
+            membersList = team.members.map((member, idx) => 
+                `<div class="member-item">${idx + 1}. ${member}</div>`
+            ).join('');
+        }
+        
         return `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${team.teamId}</td>
-                    <td>${team.teamName}</td>
-                    <td>
-                        <span class="status-badge ${checkedIn ? 'status-checked-in' : 'status-pending'}">
-                            ${checkedIn ? '✓ Checked In' : '⏳ Pending'}
-                        </span>
-                    </td>
-                    <td>${team.checkInTime ? new Date(team.checkInTime).toLocaleString() : '-'}</td>
-                    <td>
-                        ${checkedIn
-                ? `<button class="action-btn undo" onclick="undoCheckIn('${team.teamId}')">Undo</button>`
-                : `<button class="action-btn" onclick="manualCheckIn('${team.teamId}')">Check In</button>`
-            }
-                    </td>
-                </tr>
-            `}).join('');
+        <tr>
+            <td>${index + 1}</td>
+            <td>${team.teamId}</td>
+            <td>${team.teamName}</td>
+            <td class="members-cell">${membersList}</td>
+            <td>
+                <span class="status-badge ${checkedIn ? 'status-checked-in' : 'status-pending'}">
+                    ${checkedIn ? '✓ Checked In' : '⏳ Pending'}
+                </span>
+            </td>
+            <td>${team.checkInTime ? new Date(team.checkInTime).toLocaleString() : '-'}</td>
+            <td>
+                ${checkedIn
+                    ? `<button class="action-btn undo" onclick="undoCheckIn('${team.teamId}')">Undo</button>`
+                    : `<button class="action-btn" onclick="manualCheckIn('${team.teamId}')">Check In</button>`
+                }
+            </td>
+        </tr>
+    `}).join('');
 }
 
 // Filter teams based on search
 function filterTeams() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const filtered = allTeams.filter(team =>
+    const filtered = allTeams.filter(team => 
         team.teamId.toLowerCase().includes(searchTerm) ||
         team.teamName.toLowerCase().includes(searchTerm)
     );
@@ -163,8 +171,15 @@ async function undoCheckIn(teamId) {
 async function exportToExcel() {
     try {
         const response = await fetch(`${API_BASE_URL}/admin/export`);
+        
+        if (!response.ok) {
+            const data = await response.json();
+            alert(data.message || 'Failed to export data');
+            return;
+        }
+        
         const blob = await response.blob();
-
+        
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -185,7 +200,7 @@ function showMessage(elementId, text, type) {
     messageBox.textContent = text;
     messageBox.className = `message ${type}`;
     messageBox.style.display = 'block';
-
+    
     setTimeout(() => {
         messageBox.style.display = 'none';
     }, 5000);
@@ -193,6 +208,11 @@ function showMessage(elementId, text, type) {
 
 // Auto-refresh every 15 seconds
 setInterval(loadAllData, 15000);
+
+
+
+
+
 
 
 // --- Three.js & H1 Animation Logic ---
