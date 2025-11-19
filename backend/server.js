@@ -31,7 +31,6 @@ const app = express();
 // Serve static frontend files from project root
 app.use(express.static(path.join(__dirname, "../")));
 
-// Default route to index.html
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../index.html"));
 });
@@ -42,7 +41,7 @@ app.get("/", (req, res) => {
 // CORS configuration - allow all origins for Vercel deployment
 app.use(
   cors({
-    origin: "*", // Allow all origins
+    origin: ["https://dev-hack-tan.vercel.app"], // Allow all origins
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
