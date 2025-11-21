@@ -1,7 +1,7 @@
 // API Base URL - Automatically detect environment (local or deployed)
 const API_BASE_URL = window.location.hostname === "localhost"
     ? "http://localhost:3000/api"
-    : "/api";
+    : "https://dev-hack1.onrender.com/api";
 
 // DOM Elements
 const checkInForm = document.getElementById('checkInForm');

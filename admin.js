@@ -1,5 +1,7 @@
-// API Base URL - Update this with your backend URL
-const API_BASE_URL = 'https://dev-hack.onrender.com/api';
+// API Base URL - Automatically detect environment (local or deployed)
+const API_BASE_URL = window.location.hostname === "localhost"
+    ? "http://localhost:3000/api"
+    : "https://dev-hack1.onrender.com/api";
 
 let allTeams = [];
 
@@ -79,13 +81,16 @@ function renderTeams(teams) {
                 `<div class="member-item">${idx + 1}. ${member}</div>`
             ).join('');
         }
-        
+        // Contact and Email
+        const contact = team.contactNumber || '-';
+        const email = team.email || '-';
         return `
         <tr>
             <td>${index + 1}</td>
             <td>${team.teamId}</td>
             <td>${team.teamName}</td>
             <td class="members-cell">${membersList}</td>
+             <td style="font-size: 0.85rem; word-break: break-word; max-width: 200px;">${email}</td>
             <td>
                 <span class="status-badge ${checkedIn ? 'status-checked-in' : 'status-pending'}">
                     ${checkedIn ? '✓ Checked In' : '⏳ Pending'}
